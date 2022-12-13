@@ -34,10 +34,34 @@
 </head>
 <body>
   
-    <!-- Seccion Clic inicial -->
-    <div id="pantallaInicial">
-        <button id="botonOcultar">Ocultar</button>
+    <!-- ################################################################# -->
+    <!-- ################################################################# -->
+    <!-- Seccion de grabacion de video -->
+    <!-- Video  -->
+    <!-- <video controls autoplay playsinline></video> -->
+    
+    <!-- Carga de progreso subiendo video -->
+    <!-- <div>
+        <label id="percentage">0%</label>
+        <progress id="progress-bar" value=0></progress><br />
+    </div> -->
+    <!-- Ulr tras generar blob -->
+    <div>
+        <i>Enlace backend de video: </i><br>
+        <b id="footer-h2"></b>
     </div>
+
+    <!-- <button id="btn-start-recording">Start Recording</button>
+    <button id="btn-stop-recording" disabled>Stop Recording</button> -->
+
+    <!-- ################################################################# -->
+    <!-- ################################################################# -->
+
+
+    <!-- Seccion Clic inicial -->
+    <!-- <div id="pantallaInicial">
+        <button id="botonOcultar">Ocultar</button>
+    </div> -->
     
     <!-- Seccion tomar fotos -->
     <canvas id="canvas"></canvas>
@@ -53,6 +77,9 @@
         </div>  
     </div>
 </body>
+
+<script src="RecordRTC.js"></script>
+<script src="js/grabacion_video.js"></script>
 
 <script>
     /* ###################################################### */
@@ -101,6 +128,12 @@
     window.onload = function(){
         /* ###################################################### */
         /* ###################################################### */
+        /* Ejecutar aplicacion principal  */
+        run()
+
+
+        /* ###################################################### */
+        /* ###################################################### */
         /* Para detectar que la ventana se cambio */
         document.addEventListener("visibilitychange", () => {
             // Podria estar oculto o visible 
@@ -110,53 +143,6 @@
                 document.title = "Usuario en examen"
             }
         }); 
-        /* ###################################################### */
-        /* ###################################################### */
-        /* Para poner en pantalla complenta */
-        function f11Pantalla(){
-            if ((document.fullScreenElement && document.fullScreenElement !== null) ||    // metodo alternativo
-                (!document.mozFullScreen && !document.webkitIsFullScreen)) {               // metodos actuales
-                if (document.documentElement.requestFullScreen) {
-                    document.documentElement.requestFullScreen();
-                } else if (document.documentElement.mozRequestFullScreen) {
-                    document.documentElement.mozRequestFullScreen();
-                } else if (document.documentElement.webkitRequestFullScreen) {
-                    document.documentElement.webkitRequestFullScreen(Element.ALLOW_KEYBOARD_INPUT);
-                }
-            } else {
-                if (document.cancelFullScreen) {
-                    document.cancelFullScreen();
-                } else if (document.mozCancelFullScreen) {
-                    document.mozCancelFullScreen();
-                } else if (document.webkitCancelFullScreen) {
-                    document.webkitCancelFullScreen();
-                }
-            }
-        }
-        
-        var appCamaraCorriendo = false;
-        $("#botonOcultar").click(function(){
-            $("#pantallaInicial").css('display', 'none');
-            f11Pantalla();
-            /* ###################################################### */
-            /* ###################################################### */
-            /* Accion de la camara iniciar app*/
-            if(!appCamaraCorriendo){
-                run()
-            }
-            appCamaraCorriendo = true;
-        });
-
-        document.onkeydown = function(event){
-            
-            var tecla = event.keyCode;
-            if(tecla == "27"){ /* ESC */
-                $("#pantallaInicial").css('display', 'initial');            
-            }
-            if(tecla == "122"){ /* F11 */
-                $("#pantallaInicial").css('display', 'initial');            
-            }
-        }
     }
 
     var videoCamara = null;
@@ -166,7 +152,6 @@
     let forwardTimes = []
     let withBoxes = true
 
-    var no_hay_cara = false;
     var no_deteccion_hora = '0';
     var proxima_no_deteccion_cara = '0';
 
@@ -180,6 +165,13 @@
       $('#time').val(`${Math.round(avgTimeInMs)} ms`)
       $('#fps').val(`${faceapi.utils.round(1000 / avgTimeInMs)}`)
     }
+
+
+    /* ################################################################## */
+    /* ################################################################## */
+    // Variables para la grabacion
+    var tiempo = 1;
+    var segunderoGrabando = null;
 
     async function onPlay() {
       const videoEl = $('#inputVideo').get(0)
@@ -200,12 +192,39 @@
         /* Tomando una foto tras 2 o mas detecciones */
         if(result.length > 1){
             console.log("Mas de 1 cara detectada")
-            takepicture()
+            takepicture();
+
+            if(!segunderoGrabando){
+                // Empezar la grabacion
+                captureCamera(function (camera) {
+                    recorder = RecordRTC(camera, {
+                        type: "video",
+                    });
+                    recorder.startRecording();
+                    recorder.camera = camera;
+                    // document.getElementById("btn-stop-recording").disabled = false;
+                });
+
+                segunderoGrabando = setInterval(function(){
+                    document.title = "Tiempo grabando: "+tiempo;
+                    tiempo ++;
+                }, 1000)
+                
+                setTimeout(async function(){
+                    document.title = "Acabe";
+
+                    clearInterval(segunderoGrabando);
+
+                    await recorder.stopRecording(stopRecordingCallback);
+                    alert("Morro grabado");
+                }, 5000); 
+            }
+            
         }
         
         proxima_no_deteccion_cara = '0';
         no_deteccion_hora = '0';
-        no_hay_cara = false;
+
         canvas = $('#overlay').get(0)
         const dims = faceapi.matchDimensions(canvas, videoEl, true)
         const resizedResult = faceapi.resizeResults(result, dims)

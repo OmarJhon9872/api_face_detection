@@ -22,7 +22,7 @@ app.use(express.static(viewsDir))
 app.use(express.static(path.join(__dirname, './public')))
 app.use(express.static(path.join(__dirname, './weights')))
 app.use(express.static(path.join(__dirname, './dist')))
-app.use(express.static(path.join(__dirname, '/node_modules/recordrtc')))
+app.use(express.static(path.join(__dirname, './node_modules/recordrtc')))
 
 app.get('/', (req, res) => res.sendFile(path.join(viewsDir, 'faceDetection.html')));
 app.get('/grabacion', (req, res) => res.sendFile(path.join(viewsDir, 'grabacion.html')));
