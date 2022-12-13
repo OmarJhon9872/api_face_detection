@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/jpg" href="#"/>
+    
+</head>
+<body>
+    <hr />
+    <!-- Video  -->
+    <video controls autoplay playsinline></video>
+    
+    <!-- Carga de progreso subiendo video -->
+    <div>
+        <label id="percentage">0%</label>
+        <progress id="progress-bar" value=0></progress><br />
+    </div>
+    <!-- Ulr tras generar blob -->
+    <h2 id="footer-h2"></h2>
+
+    <button id="btn-start-recording">Start Recording</button>
+    <button id="btn-stop-recording" disabled>Stop Recording</button>
+    
+    <script src="RecordRTC.js"></script>
+    <script>
+        var video = document.querySelector("video");
+    
+        var progressBar = document.querySelector('#progress-bar');
+        var percentage = document.querySelector('#percentage');
+    
+        function captureCamera(callback) {
+            navigator.mediaDevices
+                .getUserMedia({ audio: true, video: true })
+                .then(function (camera) {
+                    callback(camera);
+                })
+                .catch(function (error) {
+                    alert(
+                        "Unable to capture your camera. Please check console logs."
+                    );
+                    console.error(error);
+                });
+        }
+    
+        // XHR2/FormData
+        function xhr(url, data, callback) {
+            var request = new XMLHttpRequest();
+            request.onreadystatechange = function() {
+                if (request.readyState == 4 && request.status == 200) {
+                    callback(request.responseText);
+                }
+            };
+                    
+            request.upload.onprogress = function(event) {
+                progressBar.max = event.total;
+                progressBar.value = event.loaded;
+                progressBar.innerHTML = 'Upload Progress ' + Math.round(event.loaded / event.total * 100) + "%";
+            };
+                    
+            request.upload.onload = function() {
+                percentage.style.display = 'none';
+                progressBar.style.display = 'none';
+            };
+            request.open('POST', url);
+    
+            var formData = new FormData();
+            formData.append('file', data);
+            request.send(formData);
+        }
+    
+        // this function submits recorded blob to nodejs server
+        function enviarGrabacion() {
+            var blob = recorder.getBlob();
+    
+            // getting unique identifier for the file name
+            var fileName = "Grabacion.webm";
+    
+            var file = new File([blob], fileName, {
+                type: "video/webm",
+            });
+            
+    
+            video.src = "";
+            video.poster = "/ajax-loader.gif";
+    
+            xhr("/uploadFile", file, function (responseText) {
+                var fileURL = JSON.parse(responseText).fileURL;            
+                
+                video.src = fileURL;
+                video.play();
+                video.muted = false;
+                video.controls = true;
+    
+                document.querySelector("#footer-h2").innerHTML = '<a href="'+video.src+'">'+video.src+"</a>";
+            });
+    
+            
+        }
+    
+        async function stopRecordingCallback() {
+            video.src = video.srcObject = null;
+            video.muted = false;
+            video.volume = 1;
+            var enlace = URL.createObjectURL(recorder.getBlob());
+            video.src = enlace;
+            console.log("Enlace jon: ", enlace);
+    
+            recorder.camera.stop();
+    
+            /* Guardar y enviar por post el video */
+            await enviarGrabacion();
+    
+            // recorder.destroy();
+            // recorder = null;
+        }
+    
+        var recorder; // globally accessible
+    
+        document.getElementById("btn-start-recording").onclick = function () {
+            this.disabled = true;
+            captureCamera(function (camera) {
+                video.muted = true;
+                video.volume = 0;
+                video.srcObject = camera;
+    
+                recorder = RecordRTC(camera, {
+                    type: "video",
+                });
+    
+                recorder.startRecording();
+    
+                // release camera on stopRecording
+                recorder.camera = camera;
+    
+                document.getElementById("btn-stop-recording").disabled = false;
+            });
+        };
+    
+        document.getElementById("btn-stop-recording").onclick = function () {
+            this.disabled = true;
+            recorder.stopRecording(stopRecordingCallback);
+        };
+    </script>
+</body>
+</html>
+
+
+

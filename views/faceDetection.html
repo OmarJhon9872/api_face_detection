@@ -1,28 +1,174 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="shotcut icon" href="#">
+    <style>
+        #pantallaInicial{
+            width: 100%;
+            height: 100%;
+            background: red;
+            position: absolute;
+            z-index: 9999999;
+        }
 
-  <script src="face-api.js"></script>
-  
-  <script src="js/faceDetectionControls.js"></script>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.css">
-  <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/materialize.min.js"></script>
+        /* Estilos foto capturada */
+        #photo {
+            border: 1px solid black;
+            width: 320px;
+            height: 240px;
+        }
+        #canvas {
+            display: none;
+        }
+       
+    </style>
+
+    <link rel="shotcut icon" href="#">
+
+    <script src="face-api.js"></script>
+
+    <script src="js/faceDetectionControls.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.css">
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/materialize.min.js"></script>
 </head>
 <body>
   
-  <div class="center-content page-container">
-    <div style="position: relative" class="margin">
-      <video onloadedmetadata="onPlay(this)" id="inputVideo" autoplay muted playsinline></video>
-      <canvas id="overlay">
-    </div>  
-  </body>
+    <!-- Seccion Clic inicial -->
+    <div id="pantallaInicial">
+        <button id="botonOcultar">Ocultar</button>
+    </div>
+    
+    <!-- Seccion tomar fotos -->
+    <canvas id="canvas"></canvas>
+    <img id="photo" alt="The screen capture will appear in this box.">
+    
+    
+    
+    <!-- Seccion Capturar webcam y detectar -->
+    <div class="center-content page-container d-none">
+        <div style="position: relative" class="margin">
+            <video onloadedmetadata="onPlay(this)" id="inputVideo" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+        </div>  
+    </div>
+</body>
 
-  <script>
+<script>
+    /* ###################################################### */
+    /* ###################################################### */
+    /* Empezar funcion de tomar fotos */
+    var width = 320; // We will scale the photo width to this
+    var height = 0; // This will be computed based on the input stream
+
+    var streaming = false;
+
+    var videoCamara = null;
+    var canvas = null;
+    var photo = null;
+    var startbutton = null;
+
+    function clearphoto() {
+        photo = document.getElementById('photo');
+        canvas = $('#canvas').get(0)
+        var context = canvas.getContext('2d');        
+        context.fillStyle = "#AAA";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        var data = canvas.toDataURL('image/png');
+        photo.setAttribute('src', data);
+    }
+    
+    function takepicture() {
+        photo = document.getElementById('photo');
+        canvas = $('#canvas').get(0)
+        var context = canvas.getContext('2d');
+        if (width && height) {            
+            canvas.width = width;
+            canvas.height = height;
+            context.drawImage(videoCamara, 0, 0, width, height);
+            
+            var data = canvas.toDataURL('image/png');
+            photo.setAttribute('src', data);
+        } else {        
+            clearphoto();
+        }
+    }
+
+
+
+
+    window.onload = function(){
+        /* ###################################################### */
+        /* ###################################################### */
+        /* Para detectar que la ventana se cambio */
+        document.addEventListener("visibilitychange", () => {
+            // Podria estar oculto o visible 
+            if(document.visibilityState === 'hidden'){
+                document.title = "Usuario abandono pestaña"
+            } else{
+                document.title = "Usuario en examen"
+            }
+        }); 
+        /* ###################################################### */
+        /* ###################################################### */
+        /* Para poner en pantalla complenta */
+        function f11Pantalla(){
+            if ((document.fullScreenElement && document.fullScreenElement !== null) ||    // metodo alternativo
+                (!document.mozFullScreen && !document.webkitIsFullScreen)) {               // metodos actuales
+                if (document.documentElement.requestFullScreen) {
+                    document.documentElement.requestFullScreen();
+                } else if (document.documentElement.mozRequestFullScreen) {
+                    document.documentElement.mozRequestFullScreen();
+                } else if (document.documentElement.webkitRequestFullScreen) {
+                    document.documentElement.webkitRequestFullScreen(Element.ALLOW_KEYBOARD_INPUT);
+                }
+            } else {
+                if (document.cancelFullScreen) {
+                    document.cancelFullScreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitCancelFullScreen) {
+                    document.webkitCancelFullScreen();
+                }
+            }
+        }
+        
+        var appCamaraCorriendo = false;
+        $("#botonOcultar").click(function(){
+            $("#pantallaInicial").css('display', 'none');
+            f11Pantalla();
+            /* ###################################################### */
+            /* ###################################################### */
+            /* Accion de la camara iniciar app*/
+            if(!appCamaraCorriendo){
+                run()
+            }
+            appCamaraCorriendo = true;
+        });
+
+        document.onkeydown = function(event){
+            
+            var tecla = event.keyCode;
+            if(tecla == "27"){ /* ESC */
+                $("#pantallaInicial").css('display', 'initial');            
+            }
+            if(tecla == "122"){ /* F11 */
+                $("#pantallaInicial").css('display', 'initial');            
+            }
+        }
+    }
+
+    var videoCamara = null;
+    /* ###################################################### */
+    /* ###################################################### */
+    /* Para detectar camara y segundos de inactividad */
     let forwardTimes = []
     let withBoxes = true
+
+    var no_hay_cara = false;
+    var no_deteccion_hora = '0';
+    var proxima_no_deteccion_cara = '0';
 
     function onChangeHideBoundingBoxes(e) {
       withBoxes = !$(e.target).prop('checked')
@@ -43,16 +189,24 @@
 
 
       const options = getFaceDetectorOptions()
-
       const ts = Date.now()
-
-      const result = await faceapi.detectSingleFace(videoEl, options)
+      const result = await faceapi.detectAllFaces(videoEl, options)
                                     .withFaceLandmarks();
 
       updateTimeStats(Date.now() - ts)
-
-      if (result) {
-        const canvas = $('#overlay').get(0)
+      if (result.length != 0) {
+        /* ################################################################## */
+        /* ################################################################## */
+        /* Tomando una foto tras 2 o mas detecciones */
+        if(result.length > 1){
+            console.log("Mas de 1 cara detectada")
+            takepicture()
+        }
+        
+        proxima_no_deteccion_cara = '0';
+        no_deteccion_hora = '0';
+        no_hay_cara = false;
+        canvas = $('#overlay').get(0)
         const dims = faceapi.matchDimensions(canvas, videoEl, true)
         const resizedResult = faceapi.resizeResults(result, dims)
 
@@ -60,31 +214,52 @@
           faceapi.draw.drawDetections(canvas, resizedResult)
         }
         faceapi.draw.drawFaceLandmarks(canvas, resizedResult)
+      }else{
+        if(no_deteccion_hora != '0'){
+            if(proxima_no_deteccion_cara != '0'){
+                resta_tiempo = proxima_no_deteccion_cara.getTime() - no_deteccion_hora.getTime()
+                segundos = Math.round(resta_tiempo/ (1000));
+                
+                if(segundos > 2){
+                    console.log(segundos+ " segundos sin deteccion");
+                    proxima_no_deteccion_cara = 0;
+                }else{
+                    proxima_no_deteccion_cara = new Date();
+                }
+            }else{
+                proxima_no_deteccion_cara = new Date();
+            }
+            
+        }else{
+            no_deteccion_hora = new Date();
+        }
       }
-
-      setTimeout(() => onPlay())
+      setTimeout(() => onPlay(), 200)
     }
 
     async function run() {
-      // load face detection and face landmark models
-      await changeFaceDetector(TINY_FACE_DETECTOR)
-      await faceapi.loadFaceLandmarkModel('/')
-      changeInputSize(224)
+        // load face detection and face landmark models
+        await changeFaceDetector(TINY_FACE_DETECTOR)
+        await faceapi.loadFaceLandmarkModel('/')
+        changeInputSize(224)
 
-      // try to access users webcam and stream the images
-      // to the video element
-      const stream = await navigator.mediaDevices.getUserMedia({ video: {} })
-      const videoEl = $('#inputVideo').get(0)
-      videoEl.srcObject = stream
+        // try to access users webcam and stream the images
+        // to the video element
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        videoCamara = $('#inputVideo').get(0)
+        videoCamara.srcObject = stream;
+
+        /* ###################################################### */
+        /* ###################################################### */
+        /* Configuraciones fotos */
+        height = width / (4 / 3);
+        
+        clearphoto();
+
+        
+
     }
 
-    function updateResults() {}
-
-    $(document).ready(function() {
-      //renderNavBar('#navbar', 'webcam_face_landmark_detection')
-      //initFaceDetectionControls()
-      run()
-    })
   </script>
 </body>
 </html>

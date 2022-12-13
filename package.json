@@ -9,8 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^16.0.3",
     "express": "^4.17.1",
+    "formidable": "^2.1.1",
+    "mime": "^3.0.0",
     "nodemon": "^2.0.20",
-    "request": "^2.88.2"
+    "recordrtc": "latest",
+    "request": "^2.88.2",
+    "util": "^0.12.5"
   }
 }
